@@ -1,0 +1,31 @@
+name: Build and attach release artifacts
+
+on:
+  release:
+    types:
+      - published
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '22'
+
+      - name: Build and package
+        run: |
+          chmod +x mvnw
+          ./mvnw clean package
+
+      - name: Upload asset
+        run: gh release upload "$GITHUB_REF_NAME" target/*.zip
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+  xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+  xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>blog.art.chess</groupId>
+  <artifactId>Numerals</artifactId>
+  <version>1.0.0</version>
+
+  <properties>
+    <maven.compiler.source>22</maven.compiler.source>
+    <maven.compiler.target>22</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.build.timestamp.format>yyyy-MM-dd'T'HH:mm:ss'Z'</maven.build.timestamp.format>
+  </properties>
+
+  <build>
+    <finalName>${project.artifactId}</finalName>
+
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.5.1</version>
+        <configuration>
+          <archive>
+            <manifestEntries>
+              <Main-Class>blog.art.chess.numerals.Main</Main-Class>
+              <Implementation-Title>${project.artifactId}</Implementation-Title>
+              <Implementation-Version>${project.version}</Implementation-Version>
+              <Implementation-Vendor>${project.groupId}</Implementation-Vendor>
+              <Build-Time>${maven.build.timestamp}</Build-Time>
+            </manifestEntries>
+          </archive>
+        </configuration>
+      </plugin>
+
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-assembly-plugin</artifactId>
+        <version>3.8.0</version>
+        <configuration>
+          <finalName>${project.artifactId}-${project.version}-CLI</finalName>
+          <appendAssemblyId>false</appendAssemblyId>
+          <inlineDescriptors>
+            <inlineDescriptor>
+              <id>CLI</id>
+              <formats>
+                <format>zip</format>
+              </formats>
+              <includeBaseDirectory>true</includeBaseDirectory>
+              <fileSets>
+                <fileSet>
+                  <directory>${project.build.directory}</directory>
+                  <outputDirectory>/</outputDirectory>
+                  <includes>
+                    <include>${project.artifactId}.jar</include>
+                  </includes>
+                </fileSet>
+                <fileSet>
+                  <directory>${project.basedir}</directory>
+                  <outputDirectory>/</outputDirectory>
+                  <includes>
+                    <include>LICENSE</include>
+                    <include>*.md</include>
+                  </includes>
+                </fileSet>
+              </fileSets>
+            </inlineDescriptor>
+          </inlineDescriptors>
+        </configuration>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals>
+              <goal>single</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>
