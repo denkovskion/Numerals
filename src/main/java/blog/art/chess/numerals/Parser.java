@@ -24,6 +24,7 @@
 
 package blog.art.chess.numerals;
 
+import blog.art.chess.numerals.Game.Position;
 import blog.art.chess.numerals.Pieces.Bishop;
 import blog.art.chess.numerals.Pieces.King;
 import blog.art.chess.numerals.Pieces.Knight;

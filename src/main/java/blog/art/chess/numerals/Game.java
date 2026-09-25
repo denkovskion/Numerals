@@ -24,11 +24,19 @@
 
 package blog.art.chess.numerals;
 
+import blog.art.chess.numerals.Moves.Move;
 import blog.art.chess.numerals.Pieces.Piece;
 import java.util.List;
 import java.util.Set;
 
-record Position(List<Piece> board, boolean blackToMove, Set<Integer> castlingOrigins,
-                Integer enPassantTarget) {
+class Game {
 
+  record Position(List<Piece> board, boolean blackToMove, Set<Integer> castlingOrigins,
+                  Integer enPassantTarget) {
+
+  }
+
+  record Node(Position position, List<Move> searchList) {
+
+  }
 }

@@ -24,6 +24,7 @@
 
 package blog.art.chess.numerals;
 
+import blog.art.chess.numerals.Game.Position;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;

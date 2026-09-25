@@ -24,6 +24,8 @@
 
 package blog.art.chess.numerals;
 
+import blog.art.chess.numerals.Game.Node;
+import blog.art.chess.numerals.Game.Position;
 import blog.art.chess.numerals.Moves.Move;
 import blog.art.chess.numerals.Moves.NullMove;
 import java.util.ArrayList;
@@ -35,9 +37,9 @@ class Solver {
 
   static void goPerft(Position position, int nPlies) {
     long begin = System.currentTimeMillis();
-    List<Move> pseudoLegalMoves = new ArrayList<>();
-    if (Engine.isLegal(position, pseudoLegalMoves)) {
-      long nNodes = count(position, nPlies, pseudoLegalMoves, true);
+    Optional<List<Move>> pseudoLegalMoves = Engine.isPositionLegal(position);
+    if (pseudoLegalMoves.isPresent()) {
+      long nNodes = count(new Node(position, pseudoLegalMoves.get()), nPlies, true);
       long end = System.currentTimeMillis();
       System.out.printf("Nodes searched: %d%n", nNodes);
       System.out.printf("info time %d%n", end - begin);
@@ -46,17 +48,15 @@ class Solver {
     }
   }
 
-  private static long count(Position position, int nPlies, List<Move> pseudoLegalMoves,
-      boolean verbose) {
+  private static long count(Node node, int nPlies, boolean verbose) {
     if (nPlies == 0) {
       return 1;
     }
     long nNodes = 0;
-    for (Move move : pseudoLegalMoves) {
-      List<Move> pseudoLegalMovesNext = new ArrayList<>();
-      Optional<Position> positionNext = Engine.makeMove(position, move, pseudoLegalMovesNext);
-      if (positionNext.isPresent()) {
-        long nChildNodes = count(positionNext.get(), nPlies - 1, pseudoLegalMovesNext, false);
+    for (Move move : node.searchList()) {
+      Optional<Node> nodeNext = Engine.makeMove(node.position(), move);
+      if (nodeNext.isPresent()) {
+        long nChildNodes = count(nodeNext.get(), nPlies - 1, false);
         nNodes += nChildNodes;
         if (verbose) {
           System.out.printf("%s: %d%n", Engine.toUciCode(move), nChildNodes);
@@ -66,25 +66,24 @@ class Solver {
     return nNodes;
   }
 
-  private record Variation(int value, List<Move> moves) {
+  private record Variation(int value, List<Move> gameList) {
 
   }
 
   static void goMate(Position position, int nMoves) {
     long begin = System.currentTimeMillis();
-    List<Move> pseudoLegalMoves = new ArrayList<>();
-    if (Engine.isLegal(position, pseudoLegalMoves)) {
+    Optional<List<Move>> pseudoLegalMoves = Engine.isPositionLegal(position);
+    if (pseudoLegalMoves.isPresent()) {
       List<Variation> variations = new ArrayList<>();
-      for (Move move : pseudoLegalMoves) {
-        List<Move> pseudoLegalMovesMin = new ArrayList<>();
-        Optional<Position> positionMin = Engine.makeMove(position, move, pseudoLegalMovesMin);
-        if (positionMin.isPresent()) {
-          Variation variationMin = searchMin(positionMin.get(), nMoves, pseudoLegalMovesMin);
+      for (Move move : pseudoLegalMoves.get()) {
+        Optional<Node> nodeMin = Engine.makeMove(position, move);
+        if (nodeMin.isPresent()) {
+          Variation variationMin = searchMin(nodeMin.get(), nMoves);
           int distance =
               variationMin.value > 0 ? nMoves - variationMin.value + 1 : Integer.MAX_VALUE;
-          List<Move> moves = new ArrayList<>(variationMin.moves);
-          moves.addFirst(move);
-          variations.add(new Variation(distance, moves));
+          List<Move> gameList = new ArrayList<>(variationMin.gameList);
+          gameList.addFirst(move);
+          variations.add(new Variation(distance, gameList));
           if (distance <= nMoves) {
             System.out.printf("info string %s: mate in %d%n", Engine.toUciCode(move), distance);
           } else {
@@ -98,7 +97,7 @@ class Solver {
         Variation principalVariation = variations.getFirst();
         if (principalVariation.value <= nMoves) {
           List<String> tokens = new ArrayList<>();
-          for (Move move : principalVariation.moves) {
+          for (Move move : principalVariation.gameList) {
             tokens.add(Engine.toUciCode(move));
           }
           System.out.printf("info time %d score mate %d pv %s%n", end - begin,
@@ -106,7 +105,8 @@ class Solver {
         } else {
           System.out.printf("info time %d%n", end - begin);
         }
-        System.out.printf("bestmove %s%n", Engine.toUciCode(principalVariation.moves.getFirst()));
+        System.out.printf("bestmove %s%n",
+            Engine.toUciCode(principalVariation.gameList.getFirst()));
       } else {
         System.out.printf("info time %d%n", end - begin);
         System.out.printf("bestmove %s%n", Engine.toUciCode(new NullMove()));
@@ -116,49 +116,45 @@ class Solver {
     }
   }
 
-  private static Variation searchMax(Position positionMax, int nMoves,
-      List<Move> pseudoLegalMovesMax) {
+  private static Variation searchMax(Node nodeMax, int nMoves) {
     int valueMax = -1;
-    List<Move> movesMax = new ArrayList<>();
-    for (Move moveMax : pseudoLegalMovesMax) {
-      List<Move> pseudoLegalMovesMin = new ArrayList<>();
-      Optional<Position> positionMin = Engine.makeMove(positionMax, moveMax, pseudoLegalMovesMin);
-      if (positionMin.isPresent()) {
-        Variation variationMin = searchMin(positionMin.get(), nMoves, pseudoLegalMovesMin);
+    List<Move> gameListMax = new ArrayList<>();
+    for (Move moveMax : nodeMax.searchList()) {
+      Optional<Node> nodeMin = Engine.makeMove(nodeMax.position(), moveMax);
+      if (nodeMin.isPresent()) {
+        Variation variationMin = searchMin(nodeMin.get(), nMoves);
         if (variationMin.value > valueMax) {
           valueMax = variationMin.value;
-          movesMax = new ArrayList<>(variationMin.moves);
-          movesMax.addFirst(moveMax);
+          gameListMax = new ArrayList<>(variationMin.gameList);
+          gameListMax.addFirst(moveMax);
           if (valueMax == nMoves) {
             break;
           }
         }
       }
     }
-    return new Variation(valueMax, movesMax);
+    return new Variation(valueMax, gameListMax);
   }
 
-  private static Variation searchMin(Position positionMin, int nMoves,
-      List<Move> pseudoLegalMovesMin) {
+  private static Variation searchMin(Node nodeMin, int nMoves) {
     int valueMin = 0;
-    List<Move> movesMin = new ArrayList<>();
+    List<Move> gameListMin = new ArrayList<>();
     if (nMoves == 1) {
-      for (Move moveMin : pseudoLegalMovesMin) {
-        if (Engine.makeMove(positionMin, moveMin, null).isPresent()) {
+      for (Move moveMin : nodeMin.searchList()) {
+        if (Engine.makeMove(nodeMin.position(), moveMin).isPresent()) {
           valueMin = -1;
           break;
         }
       }
     } else {
-      for (Move moveMin : pseudoLegalMovesMin) {
-        List<Move> pseudoLegalMovesMax = new ArrayList<>();
-        Optional<Position> positionMax = Engine.makeMove(positionMin, moveMin, pseudoLegalMovesMax);
-        if (positionMax.isPresent()) {
-          Variation variationMax = searchMax(positionMax.get(), nMoves - 1, pseudoLegalMovesMax);
+      for (Move moveMin : nodeMin.searchList()) {
+        Optional<Node> nodeMax = Engine.makeMove(nodeMin.position(), moveMin);
+        if (nodeMax.isPresent()) {
+          Variation variationMax = searchMax(nodeMax.get(), nMoves - 1);
           if (valueMin == 0 || variationMax.value < valueMin) {
             valueMin = variationMax.value;
-            movesMin = new ArrayList<>(variationMax.moves);
-            movesMin.addFirst(moveMin);
+            gameListMin = new ArrayList<>(variationMax.gameList);
+            gameListMin.addFirst(moveMin);
             if (valueMin == -1) {
               break;
             }
@@ -167,8 +163,8 @@ class Solver {
       }
     }
     if (valueMin == 0) {
-      valueMin = Engine.makeMove(positionMin, new NullMove(), null).isPresent() ? -1 : nMoves;
+      valueMin = Engine.makeMove(nodeMin.position(), new NullMove()).isPresent() ? -1 : nMoves;
     }
-    return new Variation(valueMin, movesMin);
+    return new Variation(valueMin, gameListMin);
   }
 }

@@ -24,6 +24,8 @@
 
 package blog.art.chess.numerals;
 
+import blog.art.chess.numerals.Game.Node;
+import blog.art.chess.numerals.Game.Position;
 import blog.art.chess.numerals.Moves.Capture;
 import blog.art.chess.numerals.Moves.Castling;
 import blog.art.chess.numerals.Moves.DoubleStep;
@@ -49,13 +51,14 @@ import java.util.Set;
 
 class Engine {
 
-  static boolean isLegal(Position position, List<Move> pseudoLegalMoves) {
+  static Optional<List<Move>> isPositionLegal(Position position) {
     return generateMoves(position.board(), position.blackToMove(), position.castlingOrigins(),
-        position.enPassantTarget(), pseudoLegalMoves);
+        position.enPassantTarget());
   }
 
-  private static boolean generateMoves(List<Piece> board, boolean blackToMove,
-      Set<Integer> castlingOrigins, Integer enPassantTarget, List<Move> moves) {
+  private static Optional<List<Move>> generateMoves(List<Piece> board, boolean blackToMove,
+      Set<Integer> castlingOrigins, Integer enPassantTarget) {
+    List<Move> moves = new ArrayList<>();
     for (int origin = 0; origin < 64; origin++) {
       Piece piece = board.get(origin);
       if (piece != null && piece.black() == blackToMove) {
@@ -80,17 +83,13 @@ class Engine {
                   if (other != null) {
                     if (other.black() != category.black()) {
                       if (other instanceof King) {
-                        return false;
+                        return Optional.empty();
                       }
-                      if (moves != null) {
-                        moves.add(new Capture(origin, target));
-                      }
+                      moves.add(new Capture(origin, target));
                     }
                     break;
                   } else {
-                    if (moves != null) {
-                      moves.add(new QuietMove(origin, target));
-                    }
+                    moves.add(new QuietMove(origin, target));
                     if (category instanceof King || category instanceof Knight) {
                       break;
                     }
@@ -112,18 +111,14 @@ class Engine {
                       if (direction > 0) {
                         int origin2 = target + direction;
                         if (castlingOrigins.contains(origin2)) {
-                          if (moves != null) {
-                            moves.add(new Castling(origin, target, origin2, target2));
-                          }
+                          moves.add(new Castling(origin, target, origin2, target2));
                         }
                       } else {
                         int stop = target + direction;
                         if (board.get(stop) == null) {
                           int origin2 = stop + direction;
                           if (castlingOrigins.contains(origin2)) {
-                            if (moves != null) {
-                              moves.add(new Castling(origin, target, origin2, target2));
-                            }
+                            moves.add(new Castling(origin, target, origin2, target2));
                           }
                         }
                       }
@@ -144,29 +139,23 @@ class Engine {
                 if (other != null) {
                   if (other.black() != black) {
                     if (other instanceof King) {
-                      return false;
+                      return Optional.empty();
                     }
                     if (origin % 8 == (black ? 1 : 6)) {
                       Piece[] box = new Piece[]{new Queen(black), new Rook(black),
                           new Bishop(black), new Knight(black)};
                       for (Piece promoted : box) {
-                        if (moves != null) {
-                          moves.add(new PromotionCapture(origin, target, promoted));
-                        }
+                        moves.add(new PromotionCapture(origin, target, promoted));
                       }
                     } else {
-                      if (moves != null) {
-                        moves.add(new Capture(origin, target));
-                      }
+                      moves.add(new Capture(origin, target));
                     }
                   }
                 } else {
                   if (enPassantTarget != null) {
                     if (target == enPassantTarget) {
                       int stop = (target / 8) * 8 + origin % 8;
-                      if (moves != null) {
-                        moves.add(new EnPassant(origin, target, stop));
-                      }
+                      moves.add(new EnPassant(origin, target, stop));
                     }
                   }
                 }
@@ -181,20 +170,14 @@ class Engine {
                   Piece[] box = new Piece[]{new Queen(black), new Rook(black), new Bishop(black),
                       new Knight(black)};
                   for (Piece promoted : box) {
-                    if (moves != null) {
-                      moves.add(new Promotion(origin, target, promoted));
-                    }
+                    moves.add(new Promotion(origin, target, promoted));
                   }
                 } else {
-                  if (moves != null) {
-                    moves.add(new QuietMove(origin, target));
-                  }
+                  moves.add(new QuietMove(origin, target));
                   if (origin % 8 == (black ? 6 : 1)) {
                     int target2 = target + direction;
                     if (board.get(target2) == null) {
-                      if (moves != null) {
-                        moves.add(new DoubleStep(origin, target2, target));
-                      }
+                      moves.add(new DoubleStep(origin, target2, target));
                     }
                   }
                 }
@@ -204,15 +187,15 @@ class Engine {
         }
       }
     }
-    return true;
+    return Optional.of(moves);
   }
 
-  static Optional<Position> makeMove(Position position, Move move, List<Move> pseudoLegalMoves) {
+  static Optional<Node> makeMove(Position position, Move move) {
     if (switch (move) {
       case NullMove(), QuietMove(_, _), Capture(_, _) -> true;
       case Castling(int origin, _, _, int target2) -> {
-        if (makeMove(position, new NullMove(), null).isPresent()) {
-          if (makeMove(position, new QuietMove(origin, target2), null).isPresent()) {
+        if (makeMove(position, new NullMove()).isPresent()) {
+          if (makeMove(position, new QuietMove(origin, target2)).isPresent()) {
             yield true;
           }
         }
@@ -261,16 +244,17 @@ class Engine {
           castlingOrigins.remove(target);
         }
       }
-      Position result = new Position(board, blackToMove, castlingOrigins, enPassantTarget);
-      if (isLegal(result, pseudoLegalMoves)) {
-        return Optional.of(result);
+      Position positionNext = new Position(board, blackToMove, castlingOrigins, enPassantTarget);
+      Optional<List<Move>> pseudoLegalMovesNext = isPositionLegal(positionNext);
+      if (pseudoLegalMovesNext.isPresent()) {
+        return Optional.of(new Node(positionNext, pseudoLegalMovesNext.get()));
       }
     }
     return Optional.empty();
   }
 
   static String toUciCode(Move move) {
-    return String.valueOf(switch (move) {
+    return switch (move) {
       case NullMove() -> "0000";
       case QuietMove(int origin, int target) -> toUciCode(origin) + toUciCode(target);
       case Capture(int origin, int target) -> toUciCode(origin) + toUciCode(target);
@@ -281,7 +265,7 @@ class Engine {
           toUciCode(origin) + toUciCode(target) + toUciCode(promoted);
       case PromotionCapture(int origin, int target, Piece promoted) ->
           toUciCode(origin) + toUciCode(target) + toUciCode(promoted);
-    });
+    };
   }
 
   private static String toUciCode(int square) {
